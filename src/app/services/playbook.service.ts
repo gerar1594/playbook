@@ -30,6 +30,11 @@ export class PlaybookService {
         );
     }
 
+    isBallActive(playerId: string) {
+        const player = this.playersOnCourt().find(p => p.player.id === playerId);
+        return player?.hasBall;
+    }
+
     addOrMovePlayer(player: Player, x: number, y: number) {
         this.playersOnCourt.update(current => {
             const index = current.findIndex(p => p.player.id === player.id);

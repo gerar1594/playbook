@@ -7,6 +7,7 @@ import { FormsModule } from '@angular/forms';
 
 
 import { BALL_CONFIG } from './constants';
+import { last } from 'rxjs';
 
 @Component({
     selector: 'app-root', standalone: true, 
@@ -71,14 +72,28 @@ export class App {
         }
     }
 
+    handleClickBall(event: MouseEvent,) {
+        this.selectedAction = null;
+        if (this.isAnimating) return;
+        if(!this.ballToolActive && this.selectedPlayerId) {
+            this.playbookService.toggleBall(this.selectedPlayerId);
+        }
+        event.stopPropagation();
+        this.ballToolActive = !this.ballToolActive;
+        this.selectedPlayerId = null;
+    }
+
     // Calcula el punto acortado para que la flecha no se oculte
 
 
     onCourtClick(event: MouseEvent) {
-        this.selectedAction = null;
         // Evitar que se ejecute si el evento viene de un elemento hijo interactivo
         const target = event.target as HTMLElement;
         if (target.closest('button, [role="button"], svg text')) return;
+
+        const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+        const clickX = event.clientX - rect.left;
+        const clickY = event.clientY - rect.top;
 
         // Click derecho (contextmenu event o button 2)
         if (event.button === 2 || event.type === 'contextmenu') {
@@ -86,10 +101,7 @@ export class App {
             event.stopPropagation();
             this.selectedAction = null;
             if (this.isAnimating || this.blockToolActive) return;
-            if (this.selectedPlayerId) {
-                const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-                const clickX = event.clientX - rect.left;
-                const clickY = event.clientY - rect.top;
+            if (this.selectedPlayerId && !this.playbookService.isBallActive(this.selectedPlayerId)) {
                 this.playbookService.setBlock(this.selectedPlayerId, clickX, clickY);
                 this.selectedPlayerId = null;
             }
@@ -99,6 +111,12 @@ export class App {
         // Click izquierdo (button 0)
         if (event.button !== 0) return;
 
+        // Si hay una acción seleccionada (línea resaltada), agregar punto intermedio
+        if (this.selectedAction && this.selectedAction.type === 'movement') {
+            this.playbookService.addMovementPoint(this.selectedAction.playerId, clickX, clickY);
+            return;
+        }
+
         // Si se hace click en el fondo del court, deseleccionar acción
         if (target.id === 'court-list' || target === event.currentTarget) {
             this.selectedAction = null;
@@ -106,10 +124,6 @@ export class App {
 
         if (this.isAnimating || this.ballToolActive || this.blockToolActive) return;
         if (this.selectedPlayerId) {
-            const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-            const clickX = event.clientX - rect.left;
-            const clickY = event.clientY - rect.top;
-
             const selected = this.playbookService.playersOnCourt().find(p => p.player.id === this.selectedPlayerId);
             if (selected?.hasBall && this.isInsideHoop(clickX, clickY)) {
                 this.playbookService.setShot(this.selectedPlayerId, this.HOOP_CENTER.x, this.HOOP_CENTER.y);
@@ -279,36 +293,66 @@ export class App {
         return points;
     }
 
-    getBlockLine(x1: number, y1: number, x2: number, y2: number) {
+    getBlockLine(x1: number, y1: number, x2: number, y2: number, targetPoints: { x: number, y: number }[] = []) {
         // Calcula la dirección principal de la línea
-        const dx = x2 - x1;
-        const dy = y2 - y1;
+        let dx = x2 - x1;
+        let dy = y2 - y1;
+        if(targetPoints.length > 0) {
+            const lastTarget = targetPoints[targetPoints.length - 1];
+            dx = x2 - lastTarget.x;
+            dy = y2 - lastTarget.y;
+        }
         const dist = Math.sqrt(dx * dx + dy * dy);
-        
-        if (dist === 0) return { mainLine: { x1, y1, x2, y2 }, perpendiculars: [] };
-        
+
         // Vector unitario
         const ux = dx / dist;
         const uy = dy / dist;
-        
+
         // Vector perpendicular
         const px = -uy;
         const py = ux;
-        
+
         // Longitud de la línea perpendicular
         const perpLength = 20;
-        
+
         // Generar dos líneas perpendiculares (arriba y abajo)
         const perp1Start = { x: x2 + px * perpLength, y: y2 + py * perpLength };
         const perp1End = { x: x2 - px * perpLength, y: y2 - py * perpLength };
-        
+        const allpoints = [ { x: x1, y: y1 }, ...targetPoints, { x: x2, y: y2 } ];
+        allpoints.map(pt => {
+            const offsetX = px * perpLength * 0.5;
+            const offsetY = py * perpLength * 0.5;
+            return { x: pt.x + offsetX, y: pt.y + offsetY };
+        });
+
         return {
-            mainLine: { x1, y1, x2, y2 },
+            points: allpoints,
             perpendiculars: [
                 { x1: perp1Start.x, y1: perp1Start.y, x2: perp1End.x, y2: perp1End.y }
             ]
         };
     }
+    /*getBlockLineWithWaypoints(startPos: { x: number, y: number }, targetPos: { x: number, y: number }, waypoints?: { x: number, y: number }[]) {
+        // Si hay waypoints, calcular bloque basado en el último segmento
+        if (waypoints && waypoints.length > 0) {
+            const lastWaypoint = waypoints[waypoints.length - 1];
+            return this.getBlockLine(lastWaypoint.x, lastWaypoint.y, targetPos.x, targetPos.y);
+        }
+        // Si no hay waypoints, usar el segmento directo
+        return this.getBlockLine(startPos.x, startPos.y, targetPos.x, targetPos.y);
+    }*/
+
+    getArrowTriangleWithWaypoints(startPos: { x: number, y: number }, targetPos: { x: number, y: number }, waypoints?: { x: number, y: number }[]) {
+        // Si hay waypoints, calcular triángulo basado en el último segmento
+        if (waypoints && waypoints.length > 0) {
+            const lastWaypoint = waypoints[waypoints.length - 1];
+            return this.getArrowTriangle(lastWaypoint.x, lastWaypoint.y, targetPos.x, targetPos.y);
+        }
+        // Si no hay waypoints, usar el segmento directo
+        return this.getArrowTriangle(startPos.x, startPos.y, targetPos.x, targetPos.y);
+    }
+
+
 
     clearPlayerAction(playerId: string) {
         this.playbookService.clearPlayerAction(playerId);
@@ -317,6 +361,8 @@ export class App {
 
     selectLine(playerId: string, actionType: 'movement' | 'pass' | 'shot', event?: MouseEvent) {
         event?.stopPropagation();
+        this.selectedPlayerId = null;
+        this.ballToolActive = false;
         if (this.selectedAction?.playerId === playerId && this.selectedAction?.type === actionType) {
             this.selectedAction = null;
         } else {

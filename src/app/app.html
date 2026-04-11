@@ -14,7 +14,7 @@
         }
 
         <div class="section-label">Herramientas</div>
-        <button class="tool-button" [class.active]="ballToolActive" (click)="ballToolActive = !ballToolActive; selectedPlayerId = null">
+        <button class="tool-button" [class.active]="ballToolActive" (click)="handleClickBall($event)">
             <span class="icon">🏀</span><span class="label">Balón</span>
         </button>
 
@@ -55,32 +55,67 @@
                         -->
                         <g class="pass-group" [attr.data-action-id]="p.player.id + '-pass'" (mouseenter)="onActionHover(p.player.id, 'pass', true)" (mouseleave)="onActionHover(p.player.id, 'pass', false)" (click)="selectLine(p.player.id, 'movement', $event)" >
                         @if (p.isDribble) {
-                            <polyline
-                                [attr.points]="getDynamicZigzag(startPos.x, startPos.y, p.targetPos.x, p.targetPos.y)"
-                                fill="none"
-                                [attr.stroke]="lineColor"
-                                stroke-width="3"
-                                stroke-linejoin="miter"
-                                class="action-line"/>
-                            <polygon
-                                [attr.points]="getArrowTriangle(startPos.x, startPos.y, p.targetPos.x, p.targetPos.y)"
-                                [attr.fill]="lineColor"
-                                class="action-triangle" />
-                        }
-                        @else {
-                            @if (p.isBlock) {
-                                @let blockLine = getBlockLine(startPos.x, startPos.y, p.targetPos.x, p.targetPos.y);
-                                <line [attr.x1]="blockLine.mainLine.x1" [attr.y1]="blockLine.mainLine.y1" [attr.x2]="blockLine.mainLine.x2" [attr.y2]="blockLine.mainLine.y2" [attr.stroke]="lineColor" stroke-width="3" class="action-line" />
-                                @for (perp of blockLine.perpendiculars; track $index) {
-                                    <line [attr.x1]="perp.x1" [attr.y1]="perp.y1" [attr.x2]="perp.x2" [attr.y2]="perp.y2" [attr.stroke]="lineColor" stroke-width="3" class="action-line" />
-                                }
+                            @if (p.targetPos.points && p.targetPos.points.length > 0) {
+                                <!-- Con waypoints: generar polyline pasando por todos los puntos -->
+                                @let allPoints = [startPos, ...(p.targetPos.points || []), { x: p.targetPos.x, y: p.targetPos.y }];
+                                <polyline [attr.points]="allPoints.map(pt => pt.x + ',' + pt.y).join(' ')" 
+                                    fill="none" [attr.stroke]="lineColor" stroke-width="3" stroke-linejoin="round" class="action-line"/>
                             } @else {
-                                @let movementEnd = getShortenedPoint(startPos.x, startPos.y, p.targetPos.x, p.targetPos.y);
-                                <line [attr.x1]="startPos.x" [attr.y1]="startPos.y" [attr.x2]="movementEnd.x" [attr.y2]="movementEnd.y" [attr.stroke]="lineColor" stroke-width="3" class="action-line" />
+                                <!-- Sin waypoints: zigzag dinámico -->
+                                <polyline
+                                    [attr.points]="getDynamicZigzag(startPos.x, startPos.y, p.targetPos.x, p.targetPos.y)"
+                                    fill="none"
+                                    [attr.stroke]="lineColor"
+                                    stroke-width="3"
+                                    stroke-linejoin="miter"
+                                    class="action-line"/>
+                            }
+                            @if (p.targetPos.points && p.targetPos.points.length > 0) {
+                                <polygon
+                                    [attr.points]="getArrowTriangleWithWaypoints(startPos, p.targetPos, p.targetPos.points)"
+                                    [attr.fill]="lineColor"
+                                    class="action-triangle" />
+                            } @else {
                                 <polygon
                                     [attr.points]="getArrowTriangle(startPos.x, startPos.y, p.targetPos.x, p.targetPos.y)"
                                     [attr.fill]="lineColor"
                                     class="action-triangle" />
+                            }
+                        }
+                        @else {
+                            @if (p.isBlock) {
+                                @let blockLine = getBlockLine(startPos.x, startPos.y, p.targetPos.x, p.targetPos.y, p.targetPos.points);
+
+                                @let allPoints = [startPos, ...(p.targetPos.points || []), { x: p.targetPos.x, y: p.targetPos.y }];
+
+                                
+                                <polyline [attr.points]="allPoints.map(pt => pt.x + ',' + pt.y).join(' ')" 
+                                    fill="none" [attr.stroke]="lineColor" stroke-width="3" stroke-linejoin="round" class="action-line"/>
+                                @for (perp of blockLine.perpendiculars; track $index) {
+                                    <line [attr.x1]="perp.x1" [attr.y1]="perp.y1" [attr.x2]="perp.x2" [attr.y2]="perp.y2" [attr.stroke]="lineColor" stroke-width="3" class="action-line" />
+                                }
+                            } @else {
+                                @if (p.targetPos.points && p.targetPos.points.length > 0) {
+                                    <!-- Con waypoints: generar polyline -->
+                                    @let allPoints = [startPos, ...(p.targetPos.points || []), { x: p.targetPos.x, y: p.targetPos.y }];
+                                    <polyline [attr.points]="allPoints.map(pt => pt.x + ',' + pt.y).join(' ')" 
+                                        fill="none" [attr.stroke]="lineColor" stroke-width="3" stroke-linejoin="round" class="action-line"/>
+                                } @else {
+                                    <!-- Sin waypoints: línea recta -->
+                                    @let movementEnd = getShortenedPoint(startPos.x, startPos.y, p.targetPos.x, p.targetPos.y);
+                                    <line [attr.x1]="startPos.x" [attr.y1]="startPos.y" [attr.x2]="movementEnd.x" [attr.y2]="movementEnd.y" [attr.stroke]="lineColor" stroke-width="3" class="action-line" />
+                                }
+                                @if (p.targetPos.points && p.targetPos.points.length > 0) {
+                                    <polygon
+                                        [attr.points]="getArrowTriangleWithWaypoints(startPos, p.targetPos, p.targetPos.points)"
+                                        [attr.fill]="lineColor"
+                                        class="action-triangle" />
+                                } @else {
+                                    <polygon
+                                        [attr.points]="getArrowTriangle(startPos.x, startPos.y, p.targetPos.x, p.targetPos.y)"
+                                        [attr.fill]="lineColor"
+                                        class="action-triangle" />
+                                }
                             }
                         }
 
@@ -96,6 +131,13 @@
                                 class="delete-action"
                                 (click)="deleteLine(p.player.id, $event)"
                             >✕</text>
+                        }
+
+                        <!-- Mostrar puntos intermedios si existen -->
+                        @if (p.targetPos.points && p.targetPos.points.length > 0) {
+                            @for (point of p.targetPos.points; track $index) {
+                                <circle [attr.cx]="point.x" [attr.cy]="point.y" r="5" fill="orange" stroke="white" stroke-width="1" class="waypoint" />
+                            }
                         }
                         </g>
                     }
