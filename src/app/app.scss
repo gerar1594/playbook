@@ -1,0 +1,405 @@
+$primary-dark: #1a252f;
+$court-orange: #d35400;
+$ball-orange: #e67e22;
+
+.main-container {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    background: $primary-dark;
+    font-family: 'Segoe UI', sans-serif;
+    overflow: hidden;
+}
+
+.sidebar {
+    width: 260px;
+    background: white;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+    z-index: 100;
+
+    .selection-panel {
+        background: #fdf2e9;
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        border: 1px solid $ball-orange;
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .size-info {
+            font-size: 0.85rem;
+            color: #555;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: $ball-orange;
+        }
+    }
+
+    .btn-reset-size {
+        background: none;
+        border: none;
+        font-size: 1.2rem;
+        cursor: pointer;
+        color: $ball-orange;
+        transition: transform 0.2s;
+
+        &:hover {
+            transform: rotate(-90deg);
+            color: $ball-orange;
+        }
+    }
+
+    .section-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        color: #95a5a6;
+        margin: 15px 0 5px;
+        font-weight: bold;
+        letter-spacing: 0.5px;
+    }
+
+    .tool-button {
+        width: 100%;
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: #fafafa;
+
+        &.active {
+            background: $ball-orange;
+            color: white;
+            border-color: $ball-orange;
+        }
+
+        &:hover:not(.active) {
+            background: #eee;
+        }
+    }
+
+    .player-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 10px;
+        background: #f4f7f6;
+        border-radius: 8px;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .actions {
+        margin-top: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+
+        button {
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: filter 0.2s;
+
+            &.btn-add {
+                background: #3498db;
+                color: white;
+            }
+
+            &.btn-play {
+                background: #27ae60;
+                color: white;
+            }
+
+            &:hover {
+                filter: brightness(1.1);
+            }
+        }
+    }
+}
+
+.court-area {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.basketball-court {
+    width: 700px;
+    height: 450px;
+    background: $court-orange;
+    border: 3px solid white;
+    position: relative;
+    border-radius: 5px;
+
+    &.animating-mode .player-wrapper {
+        transition: all 1s ease-in-out;
+    }
+}
+
+.player-wrapper {
+    position: absolute;
+    z-index: 20;
+
+    .ball-icon {
+        position: absolute;
+        top: 54%;
+        right: 51%;
+        background: transparent;
+        border-radius: 50%;
+        padding: 2px;
+        z-index: 30;
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        
+
+        &.dribbling-ball {
+            animation: dribble-bounce 0.3s ease-in-out infinite;
+        }
+    }
+}
+
+.player-on-court {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+
+    &.is-selected {
+        background: #f1c40f !important;
+        color: black !important;
+        border-color: black;
+        transform: scale(1.05);
+    }
+}
+
+.arrows-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+
+    .action-line {
+        pointer-events: auto;
+        cursor: pointer;
+        transition: stroke-width 0.2s ease;
+
+        &:hover {
+            stroke-width: 5;
+            filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
+        }
+    }
+    .transparent-line {
+        cursor: pointer;
+    }
+
+    .movement-group,
+    .pass-group,
+    .shot-group {
+        pointer-events: auto;
+
+        &.hovered {
+            .action-line {
+                stroke: white;
+                stroke-width: 5;
+                filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
+            }
+
+            .pass-line,
+            .shot-line {
+                stroke: white;
+                stroke-width: 5;
+                filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
+            }
+
+            .action-triangle,
+            .shot-triangle {
+                fill: white;
+                filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
+            }
+        }
+    }
+
+    .pass-line {
+        animation: dash 2s linear infinite;
+    }
+
+    .shot-triangle,
+    .action-triangle {
+        pointer-events: auto;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:hover {
+            filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
+        }
+    }
+
+    .pass-group.hovered .action-triangle {
+        fill: white;
+        filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
+    }
+
+    .court-lines line,
+    .court-lines circle {
+        opacity: 0.85;
+    }
+
+    .moving-ball {
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+        /*z-index: 999999;
+        transform-origin: center;
+        transition: transform 0.05s linear; /* Para suavizar el escalado entre steps */
+    }
+
+    .delete-action {
+        cursor: pointer;
+        transition: all 0.2s ease;
+        pointer-events: auto;
+
+        &:hover {
+            font-size: 20px;
+            fill: #ff4444;
+        }
+    }
+}
+
+
+
+@keyframes dash {
+    from {
+        stroke-dashoffset: 24;
+    }
+
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes dribble-bounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-3px);
+    }
+}
+
+.timeline {
+    margin-top: 20px;
+    display: flex;
+    gap: 8px;
+
+    .frame-thumb {
+        width: 40px;
+        height: 40px;
+        background: #34495e;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 5px;
+        cursor: pointer;
+
+        &.active {
+            background: #f1c40f;
+            color: black;
+            font-weight: bold;
+        }
+    }
+}
+
+.cdk-drag-preview {
+    position: fixed !important;
+    z-index: 9999 !important;
+    pointer-events: none;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+    border-radius: 50% !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto !important;
+    height: auto !important;
+}
+
+.cdk-drag-preview .player-icon,
+.cdk-drag-preview .player-wrapper,
+.cdk-drag-preview .player-on-court {
+    border-radius: 50% !important;
+}
+
+.player-icon,
+.player-wrapper {
+    width: var(--player-size) !important;
+    height: var(--player-size) !important;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    cursor: grab;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    font-size: 0.8em;
+}
+
+.cdk-drag-preview .player-on-court {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.cdk-drag-placeholder {
+    visibility: hidden !important;
+    background-color: black !important;
+}
+
+.bubble-reset {
+    position: absolute;
+    top: -15%;
+    right: -35%;
+    transform: translateX(-50%);
+    background: #f1c40f;
+    border: 1px solid white;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 9px;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+

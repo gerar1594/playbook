@@ -1,0 +1,222 @@
+<div class="main-container">
+    <aside class="sidebar">
+        <div class="header"><h3>Coach Playbook</h3></div>
+
+        @if (selectedPlayerId) {
+            <div class="selection-panel">
+                <div class="panel-header">
+                    <span class="section-label">Ajustes Jugador</span>
+                    <button class="btn-reset-size" (click)="resetSize()" title="Resetear tamaño">↺</button>
+                </div>
+                <div class="size-info">Tamaño: {{ playbookService.playersOnCourt().find(p => p.player.id === selectedPlayerId)?.player?.size }}px</div>
+                <input type="range" min="20" max="80" [value]="playbookService.playersOnCourt().find(p => p.player.id === selectedPlayerId)?.player?.size" (input)="updateSize($event)">
+            </div>
+        }
+
+        <div class="section-label">Herramientas</div>
+        <button class="tool-button" [class.active]="ballToolActive" (click)="ballToolActive = !ballToolActive; selectedPlayerId = null">
+            <span class="icon">🏀</span><span class="label">Balón</span>
+        </button>
+
+        <div class="section-label">Banquillo</div>
+        <div class="player-list" cdkDropList [cdkDropListConnectedTo]="['court-list']">
+            @for (p of playbookService.playersInBench(); track p.id) {
+                <div class="player-icon" [style.background-color]="p.color" [style.--player-size.px]="p.size"  [cdkDragData]="p" cdkDrag>{{ p.number }}</div>
+            }
+        </div>
+
+        <div class="actions">
+            <button class="btn-add" (click)="playbookService.addFrame()">+ Nuevo Frame</button>
+            <button class="btn-play" (click)="playFullPlaybook()">▶ Animar</button>
+        </div>
+    </aside>
+
+    <main class="court-area">
+        <div id="court-list" class="basketball-court" [class.animating-mode]="isAnimating" cdkDropList cdkDropListSortingDisabled="true" (cdkDropListDropped)="onDrop($event)" (click)="onCourtClick($event)" (contextmenu)="onCourtClick($event)">
+        <!-- <div id="court-list" class="basketball-court" [class.animating-mode]="isAnimating" cdkDropList cdkDropListSortingDisabled="true" (cdkDropListDropped)="onDrop($event)" (mousedown)="onCourtClick($event)" (contextmenu)="$event.preventDefault(); $event.stopPropagation()"> -->
+            <svg class="arrows-layer">
+                <defs>
+                    <pattern id="zigzag-pattern" patternUnits="userSpaceOnUse" width="16" height="8" patternTransform="rotate(0)">
+                        <path d="M 0 6 L 4 6 L 4 2 L 12 2 L 12 6 L 16 6" stroke="white" stroke-width="2" fill="none" stroke-linecap="square"/>
+                    </pattern>
+                </defs>
+
+                <g class="court-lines">
+                    <line x1="240" [attr.y1]="BOARD_LINE_Y" x2="460" [attr.y2]="BOARD_LINE_Y" stroke="white" stroke-width="4" stroke-linecap="round" />
+                    <circle cx="350" [attr.cy]="BOARD_LINE_Y - HOOP_RADIUS" [attr.r]="HOOP_RADIUS" fill="transparent" stroke="white" stroke-width="4" />
+                </g>
+
+                @for (p of playbookService.playersOnCourt(); track p.player.id) {
+                    @if (p.targetPos) {
+                        @let startPos = p.initialPos || p.currentPos;
+                        @let isMovementSelected = selectedAction?.playerId === p.player.id && selectedAction?.type === 'movement';
+                        @let lineColor = isMovementSelected ? 'lime' :  'white';
+                        <!--@let endMov = getShortenedLine(startPos.x, startPos.y, p.targetPos.x, p.targetPos.y, p.player.size || 40);
+                        -->
+                        <g class="pass-group" [attr.data-action-id]="p.player.id + '-pass'" (mouseenter)="onActionHover(p.player.id, 'pass', true)" (mouseleave)="onActionHover(p.player.id, 'pass', false)" (click)="selectLine(p.player.id, 'movement', $event)" >
+                        @if (p.isDribble) {
+                            <polyline
+                                [attr.points]="getDynamicZigzag(startPos.x, startPos.y, p.targetPos.x, p.targetPos.y)"
+                                fill="none"
+                                [attr.stroke]="lineColor"
+                                stroke-width="3"
+                                stroke-linejoin="miter"
+                                class="action-line"/>
+                            <polygon
+                                [attr.points]="getArrowTriangle(startPos.x, startPos.y, p.targetPos.x, p.targetPos.y)"
+                                [attr.fill]="lineColor"
+                                class="action-triangle" />
+                        }
+                        @else {
+                            @if (p.isBlock) {
+                                @let blockLine = getBlockLine(startPos.x, startPos.y, p.targetPos.x, p.targetPos.y);
+                                <line [attr.x1]="blockLine.mainLine.x1" [attr.y1]="blockLine.mainLine.y1" [attr.x2]="blockLine.mainLine.x2" [attr.y2]="blockLine.mainLine.y2" [attr.stroke]="lineColor" stroke-width="3" class="action-line" />
+                                @for (perp of blockLine.perpendiculars; track $index) {
+                                    <line [attr.x1]="perp.x1" [attr.y1]="perp.y1" [attr.x2]="perp.x2" [attr.y2]="perp.y2" [attr.stroke]="lineColor" stroke-width="3" class="action-line" />
+                                }
+                            } @else {
+                                @let movementEnd = getShortenedPoint(startPos.x, startPos.y, p.targetPos.x, p.targetPos.y);
+                                <line [attr.x1]="startPos.x" [attr.y1]="startPos.y" [attr.x2]="movementEnd.x" [attr.y2]="movementEnd.y" [attr.stroke]="lineColor" stroke-width="3" class="action-line" />
+                                <polygon
+                                    [attr.points]="getArrowTriangle(startPos.x, startPos.y, p.targetPos.x, p.targetPos.y)"
+                                    [attr.fill]="lineColor"
+                                    class="action-triangle" />
+                            }
+                        }
+
+                        @if (isMovementSelected) {
+                            <text 
+                                [attr.x]="p.targetPos.x" 
+                                [attr.y]="p.targetPos.y"
+                                text-anchor="middle"
+                                dominant-baseline="middle"
+                                font-size="18"
+                                font-weight="bold"
+                                fill="red"
+                                class="delete-action"
+                                (click)="deleteLine(p.player.id, $event)"
+                            >✕</text>
+                        }
+                        </g>
+                    }
+
+                    @if (p.passTargetId) {
+                        @let rec = playbookService.playersOnCourt().find(r => r.player.id === p.passTargetId);
+                        @if (rec) {
+                            @let endPoint = getShortenedLine(p.currentPos.x, p.currentPos.y, rec.currentPos.x, rec.currentPos.y, rec.player.size || 40);
+                            @let isPassSelected = selectedAction?.playerId === p.player.id && selectedAction?.type === 'pass';
+                            @let passColor = isPassSelected ? 'lime' : 'white';
+                            <g class="pass-group" [attr.data-action-id]="p.player.id + '-pass'" (mouseenter)="onActionHover(p.player.id, 'pass', true)" (mouseleave)="onActionHover(p.player.id, 'pass', false)" (click)="selectLine(p.player.id, 'pass', $event)">
+                                //Linea auxiliar para área de click más grande
+                                <line [attr.x1]="p.currentPos.x" [attr.y1]="p.currentPos.y" [attr.x2]="endPoint.x" [attr.y2]="endPoint.y" stroke="transparent" stroke-width="5" class="transparent-line" />
+
+                                //Linea visible
+                                @let passEnd = getShortenedPoint(p.currentPos.x, p.currentPos.y, endPoint.x, endPoint.y);
+                                <line class="pass-line action-line" [attr.x1]="p.currentPos.x" [attr.y1]="p.currentPos.y" [attr.x2]="passEnd.x" [attr.y2]="passEnd.y" [attr.stroke]="passColor" stroke-width="3" stroke-dasharray="8,8" />
+                                <polygon
+                                    [attr.points]="getArrowTriangle(p.currentPos.x, p.currentPos.y, endPoint.x, endPoint.y)"
+                                    [attr.fill]="passColor"
+                                    class="action-triangle" />
+                            </g>
+
+                            @if (isPassSelected) {
+                                <text 
+                                    [attr.x]="endPoint.x" 
+                                    [attr.y]="endPoint.y"
+                                    text-anchor="middle"
+                                    dominant-baseline="middle"
+                                    font-size="18"
+                                    font-weight="bold"
+                                    fill="red"
+                                    class="delete-action"
+                                    (click)="deleteLine(p.player.id, $event)"
+                                >✕</text>
+                            }
+                        }
+                    }
+
+                    @if (p.shotTarget) {
+                        @let isShotSelected = selectedAction?.playerId === p.player.id && selectedAction?.type === 'shot';
+                        @let shotColor = isShotSelected ? 'lime' : 'white';
+                        @let shotLines = getDualArrowLines(p.currentPos.x, p.currentPos.y, p.shotTarget.x, p.shotTarget.y);
+                        <g class="shot-group" [attr.data-action-id]="p.player.id + '-shot'" (mouseenter)="onActionHover(p.player.id, 'shot', true)" (mouseleave)="onActionHover(p.player.id, 'shot', false)">
+                            <line [attr.x1]="shotLines.line1.x1" [attr.y1]="shotLines.line1.y1" [attr.x2]="shotLines.line1.x2" [attr.y2]="shotLines.line1.y2" [attr.stroke]="shotColor" stroke-width="3" stroke-linecap="round" class="action-line shot-line" (click)="selectLine(p.player.id, 'shot', $event)" />
+                            <line [attr.x1]="shotLines.line2.x1" [attr.y1]="shotLines.line2.y1" [attr.x2]="shotLines.line2.x2" [attr.y2]="shotLines.line2.y2" [attr.stroke]="shotColor" stroke-width="3" stroke-linecap="round" class="action-line shot-line" (click)="selectLine(p.player.id, 'shot', $event)" />
+                            <polygon [attr.points]="shotLines.triangle" [attr.fill]="shotColor" class="action-triangle" (click)="selectLine(p.player.id, 'shot', $event)" />
+                        </g>
+
+                        @if (isShotSelected) {
+                            <text 
+                                [attr.x]="shotLines.crossPoint.x" 
+                                [attr.y]="shotLines.crossPoint.y"
+                                text-anchor="middle"
+                                dominant-baseline="middle"
+                                font-size="18"
+                                font-weight="bold"
+                                fill="red"
+                                class="delete-action"
+                                (click)="deleteLine(p.player.id, $event)"
+                            >✕</text>
+                        }
+                    }
+                }
+
+                
+            </svg>
+            <div class="balls-layer">
+                @for (ball of playbookService.ballPositions(); track ball.id) {
+                    <div 
+                        [style.left.px]="ball.x" 
+                        [style.top.px]="ball.y"
+                        [style.transform]="'scale(' + ball.s + ')'"
+                        text-anchor="middle"
+                        dominant-baseline="middle"
+                        font-size="{BALL_SIZE}"
+                        class="moving-ball"
+                        style="position: absolute; z-index: 9999; font-size: 20px;"
+                    >🏀</div>
+                }
+            </div>
+            @for (p of playbookService.playersOnCourt(); track p.player.id) {
+                <div class="player-wrapper"
+                    cdkDrag
+                    cdkDragBoundary="#court-list"
+                    [cdkDragData]="p.player"
+                    [style.left.px]="p.currentPos.x - (p.player.size! / 2)"
+                    [style.top.px]="p.currentPos.y - (p.player.size! / 2)"
+                    [style.--player-size.px]="p.player.size"
+                >
+
+
+
+                    @if (p.hasBall && !playbookService.ballPositions().some(ball => ball.id.startsWith(p.player.id + '-'))) { 
+                        <div class="ball-icon" 
+                             [style.font-size.px]="ballSize"
+                             [class]="p.isDribble ? 'dribbling-ball' : ''">🏀</div> 
+                    }
+                    <div
+                        class="player-on-court"
+                        [class.is-selected]="selectedPlayerId === p.player.id"
+                        [style.background-color]="p.player.color"
+                        (click)="handlePlayerClick($event, p.player.id)"
+                        >
+                        {{ p.player.number }}
+                    </div>
+                    @if (p.hasDiscrepancy) {
+                        <button
+                            class="bubble-reset"
+                            (click)="$event.stopPropagation(); playbookService.resetPlayerPosition(p.player.id)"
+                            >
+                            ⚓
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+        <div class="timeline">
+            @for (f of playbookService.frames(); track f.id; let i = $index) {
+                <div class="frame-thumb" [class.active]="playbookService.currentFrameIndex() === i" (click)="playbookService.loadFrame(i)">F{{ i + 1 }}</div>
+            }
+        </div>
+    </main>
+</div>
