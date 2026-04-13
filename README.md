@@ -70,9 +70,8 @@ For more information on using the Angular CLI, including detailed command refere
 - Tiro ✔️
 - Seleccionar lineas de accion ✔️
 - Bloqueo ✔️
-- Lineas de mov. con varios puntos 🚧
-    - *Pendiente: Atencion a la animacion
+- Lineas de mov. con varios puntos ✔️
 - Rutas de mov. curvas
-- Multiacciones
+- Multiacciones🚧
 - Multiframe
     Crear diferentes frame en funcion de las diferentes opciones

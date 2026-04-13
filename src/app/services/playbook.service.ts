@@ -20,6 +20,7 @@ export class PlaybookService {
     constructor() { this.addFrame(); }
 
     updatePlayerSize(playerId: string, newSize: number) {
+        this.resetAnimationPositions();
         // Actualizar en el banquillo
         this.playersInBench.update(bench =>
             bench.map(p => p.id === playerId ? { ...p, size: newSize } : p)
@@ -30,12 +31,20 @@ export class PlaybookService {
         );
     }
 
+    updatePlayerMovementPoints(playerId: string, movementPoints: { x: number, y: number }[]) {
+        this.resetAnimationPositions();
+        this.playersOnCourt.update(court =>
+            court.map(p => p.player.id === playerId ? { ...p, targetPos: p.targetPos ? { ...p.targetPos, movementPoints } : undefined } : p)
+        );
+    }
+
     isBallActive(playerId: string) {
         const player = this.playersOnCourt().find(p => p.player.id === playerId);
         return player?.hasBall;
     }
 
     addOrMovePlayer(player: Player, x: number, y: number) {
+        this.resetAnimationPositions();
         this.playersOnCourt.update(current => {
             const index = current.findIndex(p => p.player.id === player.id);
             if (index !== -1) return current.map(p => p.player.id === player.id ? { ...p, currentPos: { x, y } } : p);
@@ -46,7 +55,7 @@ export class PlaybookService {
 
     setTarget(playerId: string, x: number, y: number) {
         console.log("Set target");
-
+        this.resetAnimationPositions();
         this.playersOnCourt.update(current =>
             current.map(p => p.player.id === playerId ? { ...p, targetPos: { x, y }, shotTarget: undefined, passTargetId: undefined, isDribble: p.hasBall, isBlock: false } : p)
         );
@@ -54,6 +63,7 @@ export class PlaybookService {
     }
 
     addMovementPoint(playerId: string, x: number, y: number) {
+        this.resetAnimationPositions();
         this.playersOnCourt.update(current =>
             current.map(p => {
                 if (p.player.id !== playerId || !p.targetPos) return p;
@@ -71,6 +81,7 @@ export class PlaybookService {
     }
 
     removeMovementPoint(playerId: string, pointIndex: number) {
+        this.resetAnimationPositions();
         this.playersOnCourt.update(current =>
             current.map(p => {
                 if (p.player.id !== playerId || !p.targetPos?.points?.length) return p;
@@ -89,6 +100,7 @@ export class PlaybookService {
     }
 
     setBlock(playerId: string, x: number, y: number) {
+        this.resetAnimationPositions();
         this.playersOnCourt.update(current =>
             current.map(p => p.player.id === playerId ? { ...p, targetPos: { x, y }, shotTarget: undefined, passTargetId: undefined, isDribble: false, isBlock: true } : p)
         );
@@ -96,6 +108,7 @@ export class PlaybookService {
     }
 
     setShot(playerId: string, x: number, y: number) {
+        this.resetAnimationPositions();
         this.playersOnCourt.update(current =>
             current.map(p => p.player.id === playerId ? {
                 ...p,
@@ -110,6 +123,7 @@ export class PlaybookService {
     }
 
     setPass(passerId: string, receiverId: string) {
+        this.resetAnimationPositions();
         this.playersOnCourt.update(current =>
             current.map(p => p.player.id === passerId ? { ...p, passTargetId: receiverId, targetPos: undefined } : p)
         );
@@ -117,6 +131,7 @@ export class PlaybookService {
     }
 
     toggleBall(playerId: string) {
+        this.resetAnimationPositions();
         this.playersOnCourt.update(current => 
             current.map(p => {
                 if (p.player.id === playerId) {
@@ -143,6 +158,7 @@ export class PlaybookService {
     }
 
     resetPlayerPosition(playerId: string) {
+        this.resetAnimationPositions();
         const idx = this.currentFrameIndex();
         if (idx <= 0) return;
         const prev = this.frames()[idx - 1];
@@ -152,6 +168,23 @@ export class PlaybookService {
             this.playersOnCourt.update(curr => curr.map(p => p.player.id === playerId ? { ...p, currentPos: { ...finalPos }, hasDiscrepancy: false } : p));
             this.propagateChanges();
         }
+    }
+
+    public resetAnimationPositions() {
+        const idx = this.currentFrameIndex();
+        if (idx === -1) return;
+        const frame = this.frames()[idx];
+        this.playersOnCourt.update(current =>
+            current.map(p => {
+                const original = frame.positions.find(pos => pos.playerId === p.player.id);
+                if (!original) return p;
+                return {
+                    ...p,
+                    currentPos: { ...original.currentPos },
+                    initialPos: original.currentPos ? { ...original.currentPos } : undefined
+                };
+            })
+        );
     }
 
     private propagateChanges() {
@@ -230,10 +263,23 @@ export class PlaybookService {
         this.checkDiscrepancies();
     }
 
-    startAnimationStep() {
+    async startAnimationStep() {
         // Primero, identificar si hay pases en curso
-        const playersWithPass = this.playersOnCourt().filter(p => p.passTargetId);
+        let trajectoriesMovement: { id: string, trajectory: { x: number, y: number, s?: number }[] }[] = [];
+
+        const playersWithMovement = this.playersOnCourt().filter(p => p.targetPos);
+        if (playersWithMovement.length > 0) {
+            for (const player of playersWithMovement) {
+                if (player.targetPos) {
+                    trajectoriesMovement.push({ id: player.player.id, trajectory: [...(player.targetPos.points || []), { x: player.targetPos.x, y: player.targetPos.y } ] });
+                }
+            }
+        }
+
         const trajectories: { id: string, trajectory: { x: number, y: number, s?: number }[] }[] = [];
+
+
+        const playersWithPass = this.playersOnCourt().filter(p => p.passTargetId);
 
         if (playersWithPass.length > 0) {
             // Para cada pase, calcular la trayectoria del balón
@@ -268,7 +314,7 @@ export class PlaybookService {
         }
 
         const playerWithShoot = this.playersOnCourt().filter(p => p.shotTarget);
-        if (playerWithShoot) {
+        if (playerWithShoot.length > 0) {
             /*const shot = playerWithShot.shotTarget!;
             this.ballPositions.set([{ id: playerWithShot.player.id, x: shot.x, y: shot.y }]);
             setTimeout(() => this.ballPositions.set([]), 1000);*/
@@ -309,16 +355,15 @@ export class PlaybookService {
 
                 trajectories.push({ id: shooter.player.id + '-shoot' , trajectory });
             }
-
         }
 
-        if(trajectories){
-            this.animateBallsAlongTrajectories(trajectories);
-        }
+        const movementPromise = trajectoriesMovement.length > 0 ? this.animateMovementPlayer(trajectoriesMovement) : Promise.resolve();
+        const ballPromise = trajectories.length > 0 ? this.animateBallsAlongTrajectories(trajectories) : Promise.resolve();
 
+        await Promise.all([movementPromise, ballPromise]);
 
         // Actualizar posiciones de jugadores
-        this.playersOnCourt.update(curr => curr.map(p => p.targetPos ? { ...p, initialPos: { ...p.currentPos }, currentPos: { ...p.targetPos } } : p));
+        /*this.playersOnCourt.update(curr => curr.map(p => p.targetPos ? { ...p, initialPos: { ...p.currentPos }, currentPos: { ...p.targetPos } } : p));*/
     }
 
     private async animateBallsAlongTrajectories(trajectories: { id: string, trajectory: { x: number, y: number, s?:number }[] }[]) {
@@ -345,6 +390,37 @@ export class PlaybookService {
 
         // Al final, quitar todos los balones animados
         this.ballPositions.set([]);
+    }
+
+    private async animateMovementPlayer(trajectories: { id: string, trajectory: { x: number, y: number }[] }[]) {
+        const maxSteps = Math.max(...trajectories.map(t => t.trajectory.length));
+
+        this.playersOnCourt.update(curr => curr.map(p => {
+            return { ...p, initialPos: { ...p.currentPos } };
+        }));
+
+        for (let step = 0; step < maxSteps; step++) {
+            const currentPositions: { id: string, x: number, y: number }[] = [];
+
+            for (const traj of trajectories) {
+                if (step < traj.trajectory.length) {
+                    currentPositions.push({
+                        id: traj.id,
+                        x: traj.trajectory[step].x,
+                        y: traj.trajectory[step].y,
+
+                    });
+                    this.playersOnCourt.update(curr => curr.map(p => {
+                        if(p.player.id === traj.id) {
+                            return { ...p, currentPos: { x: traj.trajectory[step].x, y: traj.trajectory[step].y } };
+                        }
+                        return p;
+                    }));
+                }
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000)); // 50ms por punto
+
+        }
     }
 
     clearPlayerAction(playerId: string) {

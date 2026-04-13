@@ -18,7 +18,7 @@ export interface PlayerPosition {
 export interface PlayerOnCourt {
     player: Player;
     currentPos: { x: number, y: number };
-    targetPos?: { x: number, y: number , points?: { x: number, y: number }[]}; // Para animación de pase
+    targetPos?: { x: number, y: number , points?: { x: number, y: number }[], movementPoints?: {x: number, y: number}[]}; // Para animación de pase
     shotTarget?: { x: number, y: number };
     originalPos?: { x: number, y: number };
     initialPos?: { x: number, y: number };

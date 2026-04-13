@@ -35,6 +35,7 @@ export class App {
     
 
     onDrop(event: CdkDragDrop<any>) {
+        this.playbookService.resetAnimationPositions();
         this.selectedAction = null;
         if (this.isAnimating) return;
         const courtRect = event.container.element.nativeElement.getBoundingClientRect();
@@ -45,6 +46,7 @@ export class App {
     }
 
     handlePlayerClick(event: MouseEvent, clickedId: string) {
+        this.playbookService.resetAnimationPositions();
         this.selectedAction = null;
         if (this.isAnimating) return;
         event.stopPropagation();
@@ -73,6 +75,7 @@ export class App {
     }
 
     handleClickBall(event: MouseEvent,) {
+        this.playbookService.resetAnimationPositions();
         this.selectedAction = null;
         if (this.isAnimating) return;
         if(!this.ballToolActive && this.selectedPlayerId) {
@@ -85,15 +88,28 @@ export class App {
 
     // Calcula el punto acortado para que la flecha no se oculte
     onCircleClick(event: MouseEvent, indexPoint: number, playerId: string) {
-
+        this.playbookService.resetAnimationPositions();
         event.preventDefault();
         event.stopPropagation();
         if (this.isAnimating) return;
         this.playbookService.removeMovementPoint(playerId, indexPoint);
     }
 
+    onActionHover(playerId: string, actionType: 'movement' | 'pass' | 'shot', isHovering: boolean) {
+        this.playbookService.resetAnimationPositions();
+        const element = document.querySelector(`[data-action-id="${playerId}-${actionType}"]`);
+        if (element) {
+            if (isHovering) {
+                element.classList.add('hovered');
+            } else {
+                element.classList.remove('hovered');
+            }
+        }
+    }
+
     onCourtClick(event: MouseEvent) {
         // Evitar que se ejecute si el evento viene de un elemento hijo interactivo
+        this.playbookService.resetAnimationPositions();
         const target = event.target as HTMLElement;
         if (target.closest('button, [role="button"], svg text')) return;
 
@@ -164,8 +180,7 @@ export class App {
             this.playbookService.loadFrame(i);
             await new Promise(r => setTimeout(r, 100));
             this.isAnimating = true;
-            this.playbookService.startAnimationStep();
-            await new Promise(r => setTimeout(r, 1000));
+            await this.playbookService.startAnimationStep();
             this.isAnimating = false;
         }
     }
@@ -267,7 +282,13 @@ export class App {
         return Math.sqrt(dx * dx + dy * dy);
     }
 
-    getMovementBallLine(points: { x: number, y: number }[] = []) {
+    getMovementLine(points: { x: number, y: number }[] = [], playerID: string) {
+        if (points.length < 2) return points;
+        this.playbookService.updatePlayerMovementPoints(playerID, points);
+        return points;
+    }
+
+    getMovementBallLine(points: { x: number, y: number }[] = [], playerID: string) {
         if (points.length < 2) return points;
         let allPointsStr = '';
         let medida = 10;
@@ -288,8 +309,8 @@ export class App {
 
             // Determinamos cuánto nos falta para llegar al primer múltiplo de 'medida'
             // en esta nueva sección.
-            let avanceEnEsteTramo = (distanciaAcumulada === 0) 
-                                    ? medida 
+            let avanceEnEsteTramo = (distanciaAcumulada === 0)
+                                    ? medida
                                     : medida - distanciaAcumulada;
 
             while (avanceEnEsteTramo <= distTramo) {
@@ -325,14 +346,14 @@ export class App {
 
         return points.reduce((acc, currentPoint, index) => {
             if (index === 0) return 0; // No hay distancia que calcular en el primer punto
-            
+
             const previousPoint = points[index - 1];
-            
+
             // Usamos Pitágoras para el tramo actual
             const dx = currentPoint.x - previousPoint.x;
             const dy = currentPoint.y - previousPoint.y;
             const segmentDistance = Math.sqrt(dx * dx + dy * dy);
-            
+
             return acc + segmentDistance;
         }, 0);
     }
@@ -437,41 +458,6 @@ export class App {
         return this.getArrowTriangle(startPos.x, startPos.y, targetPos.x, targetPos.y);
     }
 
-
-
-    clearPlayerAction(playerId: string) {
-        this.playbookService.clearPlayerAction(playerId);
-        this.selectedAction = null;
-    }
-
-    selectLine(playerId: string, actionType: 'movement' | 'pass' | 'shot', event?: MouseEvent) {
-        event?.stopPropagation();
-        this.selectedPlayerId = null;
-        this.ballToolActive = false;
-        if (this.selectedAction?.playerId === playerId && this.selectedAction?.type === actionType) {
-            this.selectedAction = null;
-        } else {
-            this.selectedAction = { playerId, type: actionType };
-        }
-    }
-
-    deleteLine(playerId: string, event?: MouseEvent) {
-        event?.stopPropagation();
-        this.playbookService.clearPlayerAction(playerId);
-        this.selectedAction = null;
-    }
-
-    onActionHover(playerId: string, actionType: 'movement' | 'pass' | 'shot', isHovering: boolean) {
-        const element = document.querySelector(`[data-action-id="${playerId}-${actionType}"]`);
-        if (element) {
-            if (isHovering) {
-                element.classList.add('hovered');
-            } else {
-                element.classList.remove('hovered');
-            }
-        }
-    }
-
     getCurvePath(x1: number, y1: number, x2: number, y2: number, curvature: number = 40, rand: number = 1) {
         // 1. Hallar el punto medio entre el inicio y el fin
         const midX = (x1 + x2) / 2;
@@ -490,7 +476,30 @@ export class App {
         return `M ${x1},${y1} Q ${controlX},${controlY} ${x2},${y2}`;
     }
 
+
+    selectLine(playerId: string, actionType: 'movement' | 'pass' | 'shot', event?: MouseEvent) {
+        event?.stopPropagation();
+        this.selectedPlayerId = null;
+        this.ballToolActive = false;
+        if (this.selectedAction?.playerId === playerId && this.selectedAction?.type === actionType) {
+            this.selectedAction = null;
+        } else {
+            this.selectedAction = { playerId, type: actionType };
+        }
+    }
+
+    deleteLine(playerId: string, event?: MouseEvent) {
+        event?.stopPropagation();
+        this.playbookService.clearPlayerAction(playerId);
+        this.selectedAction = null;
+    }
+
     addPoint(playerId: string) {
         const player = this.playbookService.playersOnCourt().find(p => p.player.id === playerId);   
+    }
+
+    clearPlayerAction(playerId: string) {
+        this.playbookService.clearPlayerAction(playerId);
+        this.selectedAction = null;
     }
 }

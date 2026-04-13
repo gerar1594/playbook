@@ -152,7 +152,7 @@ $ball-orange: #e67e22;
     border-radius: 5px;
 
     &.animating-mode .player-wrapper {
-        transition: all 1s ease-in-out;
+        transition: all 0.7s linear;
     }
 }
 

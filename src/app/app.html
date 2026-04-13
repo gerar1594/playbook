@@ -53,11 +53,11 @@
                         @let lineColor = isMovementSelected ? 'lime' :  'white';
                         <!--@let endMov = getShortenedLine(startPos.x, startPos.y, p.targetPos.x, p.targetPos.y, p.player.size || 40);
                         -->
-                        <g class="pass-group" [attr.data-action-id]="p.player.id + '-pass'" (mouseenter)="onActionHover(p.player.id, 'pass', true)" (mouseleave)="onActionHover(p.player.id, 'pass', false)" (click)="selectLine(p.player.id, 'movement', $event)" >
+                        <g class="movement-group" [attr.data-action-id]="p.player.id + '-movement'" (mouseenter)="onActionHover(p.player.id, 'movement', true)" (mouseleave)="onActionHover(p.player.id, 'movement', false)" (click)="selectLine(p.player.id, 'movement', $event)" >
 
 
                         @if (p.isDribble) {
-                            @let allPoints = getMovementBallLine([startPos, ...(p.targetPos.points || []), { x: p.targetPos.x, y: p.targetPos.y }]);
+                            @let allPoints = getMovementBallLine([startPos, ...(p.targetPos.points || []), { x: p.targetPos.x, y: p.targetPos.y }], p.player.id);
 
 
                             <path
