@@ -269,6 +269,13 @@ $ball-orange: #e67e22;
         fill: white;
         filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
     }
+    .waypoint{
+        cursor: pointer;
+        &:hover {
+            filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
+            fill: green;
+        }
+    }
 
     .court-lines line,
     .court-lines circle {

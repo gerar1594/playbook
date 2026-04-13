@@ -57,16 +57,6 @@
 
 
                         @if (p.isDribble) {
-                            <!-- Zigzag dinámico para movimientos con balón, con o sin waypoints -->
-                            <!--@let allPoints = [startPos, ...(p.targetPos.points || []), { x: p.targetPos.x, y: p.targetPos.y }];
-
-                            <polyline
-                                [attr.points]="getDynamicZigzag(allPoints)"
-                                fill="none"
-                                [attr.stroke]="lineColor"
-                                stroke-width="3"
-                                stroke-linejoin="miter"
-                                class="action-line"/>-->
                             @let allPoints = getMovementBallLine([startPos, ...(p.targetPos.points || []), { x: p.targetPos.x, y: p.targetPos.y }]);
 
 
@@ -96,7 +86,7 @@
 
                                 @let allPoints = [startPos, ...(p.targetPos.points || []), { x: p.targetPos.x, y: p.targetPos.y }];
 
-                                
+
                                 <polyline [attr.points]="allPoints.map(pt => pt.x + ',' + pt.y).join(' ')" 
                                     fill="none" [attr.stroke]="lineColor" stroke-width="3" stroke-linejoin="round" class="action-line"/>
                                 @for (perp of blockLine.perpendiculars; track $index) {
@@ -144,7 +134,7 @@
                         <!-- Mostrar puntos intermedios si existen -->
                         @if (p.targetPos.points && p.targetPos.points.length > 0) {
                             @for (point of p.targetPos.points; track $index) {
-                                <circle [attr.cx]="point.x" [attr.cy]="point.y" r="5" fill="orange" stroke="white" stroke-width="1" class="waypoint" />
+                                <circle [attr.cx]="point.x" [attr.cy]="point.y" r="5" fill="orange" stroke="white" stroke-width="1" class="waypoint" (contextmenu)="onCircleClick($event, $index, p.player.id)"/>
                             }
                         }
                         </g>

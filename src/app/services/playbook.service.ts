@@ -70,6 +70,24 @@ export class PlaybookService {
         this.propagateChanges();
     }
 
+    removeMovementPoint(playerId: string, pointIndex: number) {
+        this.playersOnCourt.update(current =>
+            current.map(p => {
+                if (p.player.id !== playerId || !p.targetPos?.points?.length) return p;
+                const points = [...p.targetPos.points];
+                points.splice(pointIndex, 1);
+                return {
+                    ...p,
+                    targetPos: {
+                        ...p.targetPos,
+                        points: points
+                    }
+                };
+            })
+        );
+        this.propagateChanges();
+    }
+
     setBlock(playerId: string, x: number, y: number) {
         this.playersOnCourt.update(current =>
             current.map(p => p.player.id === playerId ? { ...p, targetPos: { x, y }, shotTarget: undefined, passTargetId: undefined, isDribble: false, isBlock: true } : p)

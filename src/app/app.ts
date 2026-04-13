@@ -84,7 +84,13 @@ export class App {
     }
 
     // Calcula el punto acortado para que la flecha no se oculte
+    onCircleClick(event: MouseEvent, indexPoint: number, playerId: string) {
 
+        event.preventDefault();
+        event.stopPropagation();
+        if (this.isAnimating) return;
+        this.playbookService.removeMovementPoint(playerId, indexPoint);
+    }
 
     onCourtClick(event: MouseEvent) {
         // Evitar que se ejecute si el evento viene de un elemento hijo interactivo
@@ -99,23 +105,24 @@ export class App {
         if (event.button === 2 || event.type === 'contextmenu') {
             event.preventDefault();
             event.stopPropagation();
-            this.selectedAction = null;
             if (this.isAnimating || this.blockToolActive) return;
             if (this.selectedPlayerId && !this.playbookService.isBallActive(this.selectedPlayerId)) {
                 this.playbookService.setBlock(this.selectedPlayerId, clickX, clickY);
                 this.selectedPlayerId = null;
             }
+            if (this.selectedAction && this.selectedAction.type === 'movement') {
+                this.playbookService.addMovementPoint(this.selectedAction.playerId, clickX, clickY);
+                return;
+            }
             return;
         }
+        this.selectedAction = null;
 
         // Click izquierdo (button 0)
         if (event.button !== 0) return;
 
         // Si hay una acción seleccionada (línea resaltada), agregar punto intermedio
-        if (this.selectedAction && this.selectedAction.type === 'movement') {
-            this.playbookService.addMovementPoint(this.selectedAction.playerId, clickX, clickY);
-            return;
-        }
+        
 
         // Si se hace click en el fondo del court, deseleccionar acción
         if (target.id === 'court-list' || target === event.currentTarget) {
@@ -261,66 +268,73 @@ export class App {
     }
 
     getMovementBallLine(points: { x: number, y: number }[] = []) {
-        if (points.length < 2) return '';
-
-        const stepSize = 10;
-        const amplitude = 25;
-        const curvature = 15;
-
-
-
-        const auxPoints = points.map(p => ({ x: p.x, y: p.y }));
-
-        const totalDist = Math.sqrt((auxPoints[0].x - auxPoints[auxPoints.length - 1].x) ** 2 + (auxPoints[0].y - auxPoints[auxPoints.length - 1].y) ** 2);
-        const totalSteps = Math.floor(totalDist / amplitude);
-
-        const lastDist = Math.sqrt((auxPoints[auxPoints.length - 2].x - auxPoints[auxPoints.length - 1].x) ** 2 + (auxPoints[auxPoints.length - 2].y - auxPoints[auxPoints.length - 1].y) ** 2);
-
-        const gapAtEnd =this.TRIANGLE_SIZE - 2;
-        const effectiveDist = Math.max(0, lastDist - gapAtEnd);
-        const steps = Math.floor(effectiveDist / stepSize);
-
-        const preFinalX = auxPoints[auxPoints.length - 2].x + (auxPoints[auxPoints.length - 1].x - auxPoints[auxPoints.length - 2].x) * (effectiveDist / lastDist);
-        const preFinalY = auxPoints[auxPoints.length - 2].y + (auxPoints[auxPoints.length - 1].y - auxPoints[auxPoints.length - 2].y) * (effectiveDist / lastDist);
-
-        auxPoints[auxPoints.length - 1].x = preFinalX;
-        auxPoints[auxPoints.length - 1].y = preFinalY;
-
+        if (points.length < 2) return points;
         let allPointsStr = '';
-        let rand = 1
-
-        for (let i = 0; i < auxPoints.length - 1; i++) {
-            const start = auxPoints[i];
-            const end = auxPoints[i + 1];
-
-            const dist = this.getDistance(start, end);
+        let medida = 10;
 
 
-            let steps = Math.floor(dist / amplitude);
+        const nuevaTrayectoria = [];
+        nuevaTrayectoria.push({ ...points[0] });
 
-            for (let j = 0; j <= steps - 1; j++) {
-                const t = j / steps;
-                const nextT = (j + 1) / steps;
+        let distanciaAcumulada = 0;
 
-                const x = start.x + (end.x - start.x) * t;
-                const y = start.y + (end.y - start.y) * t;
-                const endX = start.x + (end.x - start.x) * nextT;
-                const endY = start.y + (end.y - start.y) * nextT;
+        for (let i = 0; i < points.length - 1; i++) {
+            const pStart = points[i];
+            const pEnd = points[i + 1];
 
-                const midX = (x + endX) / 2;
-                const midY = (y + endY) / 2;
+            const dx = pEnd.x - pStart.x;
+            const dy = pEnd.y - pStart.y;
+            const distTramo = Math.sqrt(dx * dx + dy * dy);
 
-                // 2. Calcular el ángulo de la línea para saber hacia dónde curvar
-                const angle = Math.atan2(endY - y, endX - x);
+            // Determinamos cuánto nos falta para llegar al primer múltiplo de 'medida'
+            // en esta nueva sección.
+            let avanceEnEsteTramo = (distanciaAcumulada === 0) 
+                                    ? medida 
+                                    : medida - distanciaAcumulada;
 
-                const controlX = midX + Math.cos(angle + Math.PI / 2) * curvature * rand;
-                const controlY = midY + Math.sin(angle + Math.PI / 2) * curvature * rand;
-
-                allPointsStr += `M ${x},${y} Q ${controlX},${controlY} ${endX},${endY}`;
-                rand = -rand
+            while (avanceEnEsteTramo <= distTramo) {
+                const t = avanceEnEsteTramo / distTramo;
+                nuevaTrayectoria.push({
+                    x: pStart.x + dx * t,
+                    y: pStart.y + dy * t
+                });
+                avanceEnEsteTramo += medida;
             }
+
+            // Guardamos lo que sobró al final de este tramo para el siguiente
+            // (Distancia total del tramo menos el último avance realizado)
+            distanciaAcumulada = (distTramo - (avanceEnEsteTramo - medida));
         }
+
+        // Opcional: Asegurar que el último punto original esté incluido
+        const ultimoOriginal = points[points.length - 1];
+        nuevaTrayectoria.push({ ...ultimoOriginal });
+
+        let rand = 1;
+        for( let i = 0; i < nuevaTrayectoria.length - 2; i++) {
+            allPointsStr += this.getCurvePath(nuevaTrayectoria[i].x, nuevaTrayectoria[i].y, nuevaTrayectoria[i + 1].x, nuevaTrayectoria[i + 1].y, 5 , rand);
+            rand = -rand
+        }
+
         return allPointsStr;
+    }
+
+
+    getTotalDistance(points: {x: number, y: number}[]): number {
+        if (points.length < 2) return 0;
+
+        return points.reduce((acc, currentPoint, index) => {
+            if (index === 0) return 0; // No hay distancia que calcular en el primer punto
+            
+            const previousPoint = points[index - 1];
+            
+            // Usamos Pitágoras para el tramo actual
+            const dx = currentPoint.x - previousPoint.x;
+            const dy = currentPoint.y - previousPoint.y;
+            const segmentDistance = Math.sqrt(dx * dx + dy * dy);
+            
+            return acc + segmentDistance;
+        }, 0);
     }
 
     getDynamicZigzag(points: { x: number, y: number }[]) {
@@ -412,15 +426,6 @@ export class App {
             ]
         };
     }
-    /*getBlockLineWithWaypoints(startPos: { x: number, y: number }, targetPos: { x: number, y: number }, waypoints?: { x: number, y: number }[]) {
-        // Si hay waypoints, calcular bloque basado en el último segmento
-        if (waypoints && waypoints.length > 0) {
-            const lastWaypoint = waypoints[waypoints.length - 1];
-            return this.getBlockLine(lastWaypoint.x, lastWaypoint.y, targetPos.x, targetPos.y);
-        }
-        // Si no hay waypoints, usar el segmento directo
-        return this.getBlockLine(startPos.x, startPos.y, targetPos.x, targetPos.y);
-    }*/
 
     getArrowTriangleWithWaypoints(startPos: { x: number, y: number }, targetPos: { x: number, y: number }, waypoints?: { x: number, y: number }[]) {
         // Si hay waypoints, calcular triángulo basado en el último segmento
@@ -467,7 +472,7 @@ export class App {
         }
     }
 
-    getCurvePath(x1: number, y1: number, x2: number, y2: number, curvature: number = 40) {
+    getCurvePath(x1: number, y1: number, x2: number, y2: number, curvature: number = 40, rand: number = 1) {
         // 1. Hallar el punto medio entre el inicio y el fin
         const midX = (x1 + x2) / 2;
         const midY = (y1 + y2) / 2;
@@ -477,8 +482,8 @@ export class App {
 
         // 3. Desplazar el punto medio perpendicularmente para crear el "punto de control"
         // Usamos el ángulo + 90 grados (PI/2)
-        const controlX = midX + Math.cos(angle + Math.PI / 2) * curvature;
-        const controlY = midY + Math.sin(angle + Math.PI / 2) * curvature;
+        const controlX = midX + Math.cos(angle + Math.PI / 2) * curvature * rand;
+        const controlY = midY + Math.sin(angle + Math.PI / 2) * curvature * rand;
 
         // 4. Retornar el string del path: 
         // M = Move to (inicio), Q = Quadratic Curve (punto de control y destino)
