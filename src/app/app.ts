@@ -253,44 +253,129 @@ export class App {
         };
     }
 
-    getDynamicZigzag(x1: number, y1: number, x2: number, y2: number) {
-        const angle = Math.atan2(y2 - y1, x2 - x1);
-        const dist = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+    getDistance(p1: {x: number, y: number}, p2: {x: number, y: number}): number {
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    getMovementBallLine(points: { x: number, y: number }[] = []) {
+        if (points.length < 2) return '';
+
+        const stepSize = 10;
+        const amplitude = 25;
+        const curvature = 15;
+
+
+
+        const auxPoints = points.map(p => ({ x: p.x, y: p.y }));
+
+        const totalDist = Math.sqrt((auxPoints[0].x - auxPoints[auxPoints.length - 1].x) ** 2 + (auxPoints[0].y - auxPoints[auxPoints.length - 1].y) ** 2);
+        const totalSteps = Math.floor(totalDist / amplitude);
+
+        const lastDist = Math.sqrt((auxPoints[auxPoints.length - 2].x - auxPoints[auxPoints.length - 1].x) ** 2 + (auxPoints[auxPoints.length - 2].y - auxPoints[auxPoints.length - 1].y) ** 2);
+
+        const gapAtEnd =this.TRIANGLE_SIZE - 2;
+        const effectiveDist = Math.max(0, lastDist - gapAtEnd);
+        const steps = Math.floor(effectiveDist / stepSize);
+
+        const preFinalX = auxPoints[auxPoints.length - 2].x + (auxPoints[auxPoints.length - 1].x - auxPoints[auxPoints.length - 2].x) * (effectiveDist / lastDist);
+        const preFinalY = auxPoints[auxPoints.length - 2].y + (auxPoints[auxPoints.length - 1].y - auxPoints[auxPoints.length - 2].y) * (effectiveDist / lastDist);
+
+        auxPoints[auxPoints.length - 1].x = preFinalX;
+        auxPoints[auxPoints.length - 1].y = preFinalY;
+
+        let allPointsStr = '';
+        let rand = 1
+
+        for (let i = 0; i < auxPoints.length - 1; i++) {
+            const start = auxPoints[i];
+            const end = auxPoints[i + 1];
+
+            const dist = this.getDistance(start, end);
+
+
+            let steps = Math.floor(dist / amplitude);
+
+            for (let j = 0; j <= steps - 1; j++) {
+                const t = j / steps;
+                const nextT = (j + 1) / steps;
+
+                const x = start.x + (end.x - start.x) * t;
+                const y = start.y + (end.y - start.y) * t;
+                const endX = start.x + (end.x - start.x) * nextT;
+                const endY = start.y + (end.y - start.y) * nextT;
+
+                const midX = (x + endX) / 2;
+                const midY = (y + endY) / 2;
+
+                // 2. Calcular el ángulo de la línea para saber hacia dónde curvar
+                const angle = Math.atan2(endY - y, endX - x);
+
+                const controlX = midX + Math.cos(angle + Math.PI / 2) * curvature * rand;
+                const controlY = midY + Math.sin(angle + Math.PI / 2) * curvature * rand;
+
+                allPointsStr += `M ${x},${y} Q ${controlX},${controlY} ${endX},${endY}`;
+                rand = -rand
+            }
+        }
+        return allPointsStr;
+    }
+
+    getDynamicZigzag(points: { x: number, y: number }[]) {
+        if (points.length < 2) return '';
 
         const stepSize = 10;
         const amplitude = 5;
 
-        // 1. IMPORTANTE: Reservamos un espacio al final (p.ej. 10px)
-        // para que el triángulo de la flecha tenga espacio sin sobreponerse.
-        const gapAtEnd = 10;
-        const effectiveDist = Math.max(0, dist - this.TRIANGLE_SIZE);
-        const steps = Math.floor(effectiveDist / stepSize);
+        let allPointsStr = '';
 
-        let points = `${x1},${y1}`;
+        for (let i = 0; i < points.length - 1; i++) {
+            const x1 = points[i].x;
+            const y1 = points[i].y;
+            const x2 = points[i + 1].x;
+            const y2 = points[i + 1].y;
 
-        for (let i = 1; i <= steps; i++) {
-            // Calculamos t basado en la distancia efectiva (sin el final)
-            const t = (i * stepSize) / dist;
+            const angle = Math.atan2(y2 - y1, x2 - x1);
+            const dist = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
 
-            const currX = x1 + (x2 - x1) * t;
-            const currY = y1 + (y2 - y1) * t;
+            // Reservar espacio al final para la flecha, pero solo en el último segmento
+            const gapAtEnd = (i === points.length - 2) ? this.TRIANGLE_SIZE : 0;
+            const effectiveDist = Math.max(0, dist - gapAtEnd);
+            const steps = Math.floor(effectiveDist / stepSize);
 
-            const offset = (i % 2 === 0 ? 1 : -1) * amplitude;
+            if (i === 0) {
+                allPointsStr += `${x1},${y1}`;
+            }
 
-            const zigX = currX + Math.cos(angle + Math.PI / 2) * offset;
-            const zigY = currY + Math.sin(angle + Math.PI / 2) * offset;
+            for (let j = 1; j <= steps; j++) {
+                const t = (j * stepSize) / dist;
+                const currX = x1 + (x2 - x1) * t;
+                const currY = y1 + (y2 - y1) * t;
 
-            points += ` ${zigX},${zigY}`;
+                // Pequeñas curvas usando función sinusoidal con mismo número de zigzags
+                const numZigzags = steps - 1;
+                const frequency = numZigzags / 2; // Para tener el mismo número de ondas
+                const offset = Math.sin((j / steps) * Math.PI * frequency) * amplitude;
+                const zigX = currX + Math.cos(angle + Math.PI / 2) * offset;
+                const zigY = currY + Math.sin(angle + Math.PI / 2) * offset;
+
+                allPointsStr += ` ${zigX},${zigY}`;
+            }
+
+            // Punto final del segmento
+            if (i === points.length - 2) {
+                // Último segmento: añadir punto antes de la flecha
+                const preFinalX = x1 + (x2 - x1) * (effectiveDist / dist);
+                const preFinalY = y1 + (y2 - y1) * (effectiveDist / dist);
+                allPointsStr += ` ${preFinalX},${preFinalY}`;
+            } else {
+                allPointsStr += ` ${x2},${y2}`;
+            }
         }
 
-        // 2. Antes del punto final real, añadimos un punto en la línea recta
-        // Esto asegura que la flecha esté perfectamente alineada con el ángulo original.
-        const preFinalX = x1 + (x2 - x1) * (effectiveDist / dist);
-        const preFinalY = y1 + (y2 - y1) * (effectiveDist / dist);
-
-        points += ` ${preFinalX},${preFinalY}`;
-
-        return points;
+        return allPointsStr;
     }
 
     getBlockLine(x1: number, y1: number, x2: number, y2: number, targetPoints: { x: number, y: number }[] = []) {
@@ -319,11 +404,6 @@ export class App {
         const perp1Start = { x: x2 + px * perpLength, y: y2 + py * perpLength };
         const perp1End = { x: x2 - px * perpLength, y: y2 - py * perpLength };
         const allpoints = [ { x: x1, y: y1 }, ...targetPoints, { x: x2, y: y2 } ];
-        allpoints.map(pt => {
-            const offsetX = px * perpLength * 0.5;
-            const offsetY = py * perpLength * 0.5;
-            return { x: pt.x + offsetX, y: pt.y + offsetY };
-        });
 
         return {
             points: allpoints,

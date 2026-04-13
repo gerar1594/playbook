@@ -71,7 +71,7 @@ For more information on using the Angular CLI, including detailed command refere
 - Seleccionar lineas de accion ✔️
 - Bloqueo ✔️
 - Lineas de mov. con varios puntos 🚧
-    - *Pendiente: Atencion a la animacion, mov. con balon se quita el zigzag con varios puntos.
+    - *Pendiente: Atencion a la animacion, mov. con balon ajustar las curvas cuando varios puntos para que todas las curvas sean iguales.
     
 - Rutas de mov. curvas
 - Multiacciones
